@@ -1,247 +1,80 @@
-# Jagwire# Jagwire
+# cam_tracker_s3
 
-## Looking to Use This Model?
+Camera pipeline measurements and a starting point for an onboard object tracker on an ESP32-S3 camera board.
 
-If you want to run or experiment with this model, check out the following branches — each one corresponds to a different ablation of the Sub-Center ArcFace head:
+**Status: work in progress.** The firmware currently opens the camera, pulls raw frames, extracts a grayscale image, and logs the frame rate it actually achieves. Object detection and control are planned, not implemented.
 
-| Branch | Description |
-|---|---|
-| `k1tests` | K=1 sub-centers (standard ArcFace) |
-| `k3tests` | K=3 sub-centers |
-| `k5tests` | K=5 sub-centers |
+## Hardware
 
-```bash
-git checkout K1tests
-# or
-git checkout K3tests
-# or
-git checkout K5tests
-```
+- Waveshare ESP32-S3-CAM-OV3660 board (ESP32-S3R8: 8 MB octal PSRAM in the package, 16 MB external quad flash)
+- OV3660 camera module on the board's 24-pin DVP connector
+- USB-C for power, flashing, and the serial monitor
 
----
- 
-A jaguar re-identification model that learns to recognise individual jaguars across photographs using metric learning. Built with a **MegaDescriptor-L (Swin-L) backbone**, **CBAM spatial attention**, and a **Sub-Center ArcFace** head. Trained and evaluated on the [Kaggle Jaguar Re-ID competition](https://www.kaggle.com/competitions/jaguar-re-id) dataset.
- 
-> **Note:** This branch contains only the README. To use the model, you must switch to one of the branches listed above.
- 
----
- 
-## Table of Contents
- 
-- [Project Overview](#project-overview)
-- [Setup Instructions](#setup-instructions)
-- [Required Dependencies](#required-dependencies)
-- [Dataset](#dataset)
-- [Data Preprocessing](#data-preprocessing)
-- [How to Train the Model](#how-to-train-the-model)
-- [How to Evaluate the Model](#how-to-evaluate-the-model)
-- [Expected Outputs](#expected-outputs)
-- [Reproducing Results](#reproducing-results)
-  
----
- 
-## Project Overview
- 
-Jagwire identifies individual jaguars by learning a compact 512-dimensional embedding space where images of the same jaguar cluster close together. Given a query image and a gallery image, the model outputs a similarity score between 0 and 1.
- 
-**Architecture:**
- 
-| Component | Detail |
-|---|---|
-| Backbone | `MegaDescriptor-L-384` (Swin-L, 384 × 384 input) via HuggingFace/timm |
-| Attention | CBAM (Channel + Spatial) — focuses on spot and flank patterns |
-| Embedding neck | Linear(1536 → 512) + BatchNorm1d |
-| Loss head | Sub-Center ArcFace (K=3 sub-centers, s=64, m=0.5) |
-| Similarity metric | Cosine similarity rescaled to [0, 1] |
- 
-**Why Sub-Center ArcFace?**
-Jaguars photographed from their left flank and right flank have different spot patterns. Sub-Center ArcFace assigns K cluster centres per individual so both views are captured correctly.
- 
-**Why CBAM?**
-Without attention, the backbone may focus on background vegetation rather than the jaguar's coat. CBAM forces the model to attend to the animal itself.
- 
----
- 
-## Setup Instructions
- 
-### 1. Clone the repository
- 
-```bash
-git clone https://github.com/just-maki/Jagwire.git
-cd Jagwire
-git checkout K1tests  # or K3tests / K5tests
-```
- 
-### 2. Create and activate a virtual environment
- 
-```bash
-python -m venv venv
- 
-# macOS / Linux
-source venv/bin/activate
- 
-# Windows
-venv\Scripts\activate
-```
- 
-### 3. Install dependencies
- 
-```bash
-pip install -r requirements.txt
-```
- 
-The MegaDescriptor-L backbone weights (~400 MB) will be downloaded automatically from HuggingFace the first time the notebook is run.
- 
----
- 
-## Required Dependencies
- 
-| Package | Purpose |
-|---|---|
-| `torch` / `torchvision` | Model training and transforms |
-| `timm` | MegaDescriptor-L backbone |
-| `pandas` / `numpy` | Data loading and manipulation |
-| `Pillow` | Image loading |
-| `scikit-learn` | Train/val splitting and AUC metric |
-| `tqdm` | Progress bars |
-| `matplotlib` / `seaborn` | EDA visualisations |
- 
-Install all at once with:
- 
-```bash
-pip install -r requirements.txt
-```
- 
-**Hardware:** An NVIDIA GPU with CUDA is strongly recommended. The notebook will fall back to CPU but training 20 epochs will take significantly longer.
- 
----
- 
-## Dataset
- 
-The dataset comes from the Kaggle Jaguar Re-Identification competition and requires a free Kaggle account to download.
- 
-**Competition page:** [https://www.kaggle.com/competitions/jaguar-re-id](https://www.kaggle.com/competitions/jaguar-re-id)
- 
- 
-1. Go to the competition page and accept the rules
-2. Download the dataset zip from the **Data** tab
-3. Unzip it into the `data/` folder in the repo root
- 
- 
-## Data Preprocessing
- 
-Preprocessing is handled automatically inside the notebook via torchvision transforms. No manual preprocessing step is required.
- 
-**Training transforms** (applied on the fly during training):
- 
-| Transform | Detail |
-|---|---|
-| `RandomResizedCrop(384)` | Scale range 0.6–1.0 |
-| `RandomHorizontalFlip` | p=0.5 |
-| `ColorJitter` | brightness=0.3, contrast=0.3, saturation=0.2, hue=0.1 |
-| `RandomGrayscale` | p=0.1 |
-| `Normalize` | mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225] |
- 
-**Validation / inference transforms:**
- 
-| Transform | Detail |
-|---|---|
-| `Resize(384)` | Shorter edge to 384 |
-| `CenterCrop(384)` | Centre crop to 384 × 384 |
-| `Normalize` | Same as training |
- 
-**Class imbalance:** The dataset contains some jaguars with over 100 images and others with only a few. A `WeightedRandomSampler` is used during training to ensure each individual is seen equally often per epoch.
- 
-**Label encoding:** Jaguar names are sorted alphabetically and mapped to integer indices (e.g. `abril → 0`, `akaloi → 1`, etc.) inside the `jaguardataset` class.
- 
----
- 
-## How to Train the Model
- 
-Open `jaguarid.ipynb` in Jupyter or VS Code and run all cells from top to bottom.
- 
-> **⚠️ Training is computationally intensive.** A full 20-epoch run takes several hours even on a modern NVIDIA GPU. On CPU expect significantly longer. It is strongly recommended to run this on a machine with a CUDA-capable GPU.
- 
-> **⚠️ Training time:** This model takes a significant amount of time to train. An NVIDIA GPU is strongly recommended — running on CPU will be considerably slower.
- 
-### Key hyperparameters (Cell 5)
- 
-| Parameter | Default | Description |
+## Results so far
+
+Measured on my board with the timing loop in `main/main.c` (100-frame phases):
+
+| Camera mode (YUV422) | Driver's nominal rate | Measured rate |
 |---|---|---|
-| `batchsize` | `8` | Images per batch |
-| `workers` | `0` | Must stay 0 in Jupyter |
-| `arcs` | `64` | ArcFace scale factor (s) |
-| `arcm` | `0.5` | ArcFace final margin (m) |
- 
-### Training configuration (Cell 19)
- 
-| Setting | Value |
-|---|---|
-| Epochs | 20 |
-| Optimizer | AdamW (lr=3e-4, weight_decay=1e-4) |
-| Scheduler | CosineAnnealingLR |
-| Loss | CrossEntropyLoss (label_smoothing=0.1) |
-| Train / Val split | 80 / 20 stratified (random_state=99) |
-| Input resolution | 384 × 384 |
-| Dynamic margin | Ramps from 0.1 → 0.5 over 20 epochs |
- 
-### Per-epoch console output
- 
-```
-Epoch 01 | margin=0.100 | loss=4.2301 | val_auc=0.7821
-Epoch 02 | margin=0.121 | loss=3.8754 | val_auc=0.8103
-...
-```
- 
----
- 
-## How to Evaluate the Model
- 
-Evaluation runs automatically at the end of each training epoch. It measures how well the model's embeddings separate same-jaguar pairs from different-jaguar pairs.
- 
-### Metric: ROC-AUC on cosine similarity
- 
-At the end of every epoch the notebook:
- 
-1. Embeds all validation images
-2. Randomly samples up to 100,000 pairs from the validation set
-3. Computes cosine similarity for each pair
-4. Labels same-jaguar pairs as positive (1) and different-jaguar pairs as negative (0)
-5. Computes ROC-AUC over those similarity scores
- 
-A score of **1.0** means perfect separation. A score of **0.5** is random chance.
- 
-### Running evaluation on a saved model without retraining
- 
-Add the following cell before the inference section (Cell 20) and run from there:
- 
-```python
-model.load_state_dict(torch.load('jaguar_model.pth', map_location=device))
-model.eval()
-```
- 
----
- 
-## Expected Outputs
- 
-| Output | Location | Description |
-|---|---|---|
-| `jaguar_model.pth` | repo root | Saved model weights after training |
-| Per-epoch logs | notebook console | margin, loss, val_auc per epoch |
- 
+| 640x480 (driver default) | 10 fps | 6.7 fps |
+| 240x240 | 24 fps | 15.0 fps |
 
-## Reproducing Results
- 
-To reproduce results exactly:
- 
-1. use the dataset from kaggle
-2. Do **not** change `random_state=99` in Cell 13 — this controls the train/val split
-3. Use the default hyperparameters in Cell 5 (`arcs=64`, `arcm=0.5`, `batchsize=8`)
-4. Run all cells top to bottom without skipping any
- 
-> **Note:** Results may vary slightly across different GPU hardware and CUDA versions due to floating-point non-determinism. To reduce this, add the following before training:
-> ```python
-> torch.backends.cudnn.deterministic = True
-> torch.backends.cudnn.benchmark = False
-> ```
- 
+- The 15.0 fps figure was identical across repeated runs, and adding the grayscale step did not change it.
+- Grayscale extraction at 240x240 (every second pixel and row, giving a 120x120 image) takes about 1.14 ms per frame, roughly 2% of the 66.7 ms frame interval.
+- Not yet tested: behaviour across different lighting (exposure may change the frame rate), and end-to-end latency.
+
+## What I found about the camera
+
+- **Frame layout:** the frames are packed 4:2:2 (YUYV-style), 2 bytes per pixel, with the brightness byte at every even offset. I checked this by rendering a captured 640x480 frame both ways. The driver logs the format as `422P`, which does not match the bytes. I have not repeated the visual check in 240x240 mode.
+- **240x240 mode:** by my reading of the sensor's register table it keeps the full sensor height and roughly three quarters of the width, then scales to a square. I read the register values against the usual OmniVision layout from memory and have not verified this with a picture.
+- **Camera pins** (from the vendor example's configuration):
+
+| Signal | GPIO |
+|---|---|
+| SCCB SCL / SDA | 7 / 8 |
+| XCLK (20 MHz) | 38 |
+| PCLK | 41 |
+| VSYNC | 17 |
+| DE (line valid) | 18 |
+| D0 to D7 | 45, 47, 48, 46, 42, 40, 39, 21 |
+| Reset / power-down | not driven (-1) |
+
+## Toolchain
+
+- **ESP-IDF v5.5.1.** ESP-IDF v6.1 did not build this project: `espressif/esp_cam_sensor` 1.7.0 (pulled in by the vendor example's dependencies) failed to compile against v6.1's SPI driver internals.
+- Component versions in my working build: `esp_cam_sensor` 1.7.0, `esp_video` 1.4.1. These are not pinned in this repo (see Notes).
+
+## Build and flash
+
+Install ESP-IDF v5.5.1 (for example with Espressif's installer, EIM), activate it in your terminal, then:
+
+```
+idf.py set-target esp32s3
+idf.py build
+idf.py -p <PORT> flash monitor
+```
+
+`set-target` generates `sdkconfig` from `sdkconfig.defaults`, which holds the board-specific settings (custom partition table, octal PSRAM, 16 MB flash, camera pins, and the 240x240 camera mode). The first build downloads the managed components and needs internet access. On macOS the serial port looks like `/dev/cu.usbmodem*` and its number can change after a reset.
+
+The monitor prints a `[capture only]` line, then repeating `[capture + gray ...]` lines. The label on the second one still says "320x240" from an earlier version; at the 240x240 camera mode the output is actually 120x120.
+
+## Repository layout and credits
+
+- `main/main.c`: the measurement firmware (my code; the vendor's original `main.c` was a web server and is not included here)
+- `components/example_video_common/`: board bring-up code from the vendor example, unmodified
+- `frontend/`: the vendor example's web UI. This firmware does not use it, but `main/CMakeLists.txt` still embeds its files, so it stays for now.
+- `sdkconfig.defaults`: board settings recorded with `idf.py save-defconfig`. Wi-Fi credentials were removed and Wi-Fi is not used.
+
+This project started from Waveshare's ESP32-S3-CAM-OVxxxx ESP-IDF example `01_simple_video_server` (https://github.com/waveshareteam/ESP32-S3-CAM-OVxxxx), which is Apache-2.0 licensed. Files copied from it keep their original headers and license terms. My own code (`main/main.c`, this README) is licensed under the PolyForm Noncommercial License 1.0.0 (see `LICENSE`): free to use for noncommercial purposes, not for commercial use. Files taken from Waveshare and Espressif keep their own licenses, see `NOTICE`.
+
+## Notes
+
+- `dependencies.lock` is not committed because the vendor's copy contained an absolute path from another machine. It regenerates on build, so component versions can drift.
+- The camera flex cable must be fully seated. When it was not, every sensor probe failed with I2C NACK errors at boot.
+- Expected boot noise: several `failed to detect DVP camera` errors appear while the driver tries each supported sensor before it finds the OV3660.
+
+## Planned
+
+- Detect a brightly coloured target in the low-resolution grayscale or colour data
+- Split capture and detection into FreeRTOS tasks connected by a queue
+- Drive a pan-tilt mount from the detection result and measure end-to-end latency

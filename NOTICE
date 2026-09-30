@@ -1,0 +1,41 @@
+cam_tracker_s3
+
+Required Notice: Copyright (c) 2026 Max Lebda
+
+This repository contains material under different licenses.
+
+Original work
+-------------
+The following are my own work and are licensed under the PolyForm
+Noncommercial License 1.0.0 (see LICENSE, or
+https://polyformproject.org/licenses/noncommercial/1.0.0):
+
+  - main/main.c
+  - README.md
+  - NOTICE
+
+You may read, use, modify, and share this code for noncommercial purposes.
+You may not use it commercially, which includes selling it or selling
+products or services built from it. Read the license for the exact terms.
+
+Third-party material
+--------------------
+The following was copied from Waveshare's ESP32-S3-CAM-OVxxxx examples
+(https://github.com/waveshareteam/ESP32-S3-CAM-OVxxxx), which are licensed
+under the Apache License 2.0 (see LICENSES/Apache-2.0.txt). Some of it
+includes code from Espressif. These files keep their original license
+headers and terms. The noncommercial license above does NOT apply to them:
+
+  - components/example_video_common/
+  - frontend/
+  - main/CMakeLists.txt, main/Kconfig.projbuild, main/idf_component.yml
+  - CMakeLists.txt, partitions.csv, pic/
+  - sdkconfig.defaults (settings taken from the vendor example, plus
+    options recorded from my own build)
+
+Note on main/main.c
+-------------------
+The camera setup sequence in main/main.c (opening the device, requesting
+buffers, mapping them, and starting the stream) follows the vendor example's
+code. Where it does, the vendor's license terms may still apply to that
+portion.
