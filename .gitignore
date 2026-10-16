@@ -3,7 +3,6 @@ managed_components/
 sdkconfig
 sdkconfig.old
 sdkconfig.vendor
-dependencies.lock
 main/main.c.waveshare
 .DS_Store
 .clangd

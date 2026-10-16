@@ -42,7 +42,7 @@ Measured on my board with the timing loop in `main/main.c` (100-frame phases):
 ## Toolchain
 
 - **ESP-IDF v5.5.1.** ESP-IDF v6.1 did not build this project: `espressif/esp_cam_sensor` 1.7.0 (pulled in by the vendor example's dependencies) failed to compile against v6.1's SPI driver internals.
-- Component versions in my working build: `esp_cam_sensor` 1.7.0, `esp_video` 1.4.1. These are not pinned in this repo (see Notes).
+- Component versions in my working build: `esp_cam_sensor` 1.7.0, `esp_video` 1.4.1. They are pinned by `dependencies.lock`.
 
 ## Build and flash
 
@@ -69,7 +69,7 @@ This project started from Waveshare's ESP32-S3-CAM-OVxxxx ESP-IDF example `01_si
 
 ## Notes
 
-- `dependencies.lock` is not committed because the vendor's copy contained an absolute path from another machine. It regenerates on build, so component versions can drift.
+- `dependencies.lock` is committed so builds resolve the same component versions. It was generated with ESP-IDF v5.5.1; other ESP-IDF versions may fail (v6.1 does).
 - The camera flex cable must be fully seated. When it was not, every sensor probe failed with I2C NACK errors at boot.
 - Expected boot noise: several `failed to detect DVP camera` errors appear while the driver tries each supported sensor before it finds the OV3660.
 
