@@ -77,4 +77,3 @@ This project started from Waveshare's ESP32-S3-CAM-OVxxxx ESP-IDF example `01_si
 
 - Detect a brightly coloured target in the low-resolution grayscale or colour data
 - Split capture and detection into FreeRTOS tasks connected by a queue
-- Drive a pan-tilt mount from the detection result and measure end-to-end latency
